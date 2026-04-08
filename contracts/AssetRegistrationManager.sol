@@ -14,6 +14,7 @@ contract AssetRegistrationManager is AssetOperatorBase {
         bytes32 indexed assetKey,
         string assetId,
         string ownerDid,
+        string metadata,
         address indexed operator,
         uint256 createTime
     );
@@ -33,6 +34,7 @@ contract AssetRegistrationManager is AssetOperatorBase {
             keccak256(bytes(assetId)),
             assetId,
             ownerDid,
+            metadata,
             msg.sender,
             block.timestamp
         );
