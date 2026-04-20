@@ -149,6 +149,24 @@ contract AssetDirectory is Ownable {
         record.exists = true;
     }
 
+    /// @notice 从目录中移除已有资产记录。
+    /// @dev 仅允许已配置的资产注册管理合约调用。
+    /// @param assetId 资产唯一业务标识。
+    /// @param ownerDid 发起移除的资产所有者 DID。
+    function removeAsset(
+        string calldata assetId,
+        string calldata ownerDid
+    ) external onlyRegistrationManager {
+        bytes32 assetKey = _hash(assetId);
+        AssetRecord storage record = _requireAsset(assetKey);
+
+        require(_sameString(record.asset.owner, ownerDid), "AssetDirectory: owner mismatch");
+
+        delete record.asset;
+        record.exists = false;
+        record.authorizationEpoch = record.authorizationEpoch.add(1);
+    }
+
     /// @notice 将资产所有权转移给新的 DID。
     /// @dev 仅允许已配置的权属转移管理合约调用。
     /// @param assetId 资产唯一业务标识。

@@ -19,6 +19,20 @@ contract AssetRegistrationManager is AssetOperatorBase {
         uint256 createTime
     );
 
+    /// @notice 已注册资产被移除时触发。
+    /// @param assetKey 资产标识的哈希键。
+    /// @param assetId 资产唯一业务标识。
+    /// @param ownerDid 发起移除的资产所有者 DID。
+    /// @param operator 发起移除交易的链上账户。
+    /// @param removeTime 移除发生时的区块时间戳。
+    event AssetRemoved(
+        bytes32 indexed assetKey,
+        string assetId,
+        string ownerDid,
+        address indexed operator,
+        uint256 removeTime
+    );
+
     constructor(address directoryAddress, address didRegistryAddress)
         public
         AssetOperatorBase(directoryAddress, didRegistryAddress)
@@ -35,6 +49,21 @@ contract AssetRegistrationManager is AssetOperatorBase {
             assetId,
             ownerDid,
             metadata,
+            msg.sender,
+            block.timestamp
+        );
+    }
+
+    /// @notice 移除调用方当前激活 DID 持有的已注册资产。
+    /// @param assetId 资产唯一业务标识。
+    function removeAsset(string calldata assetId) external {
+        string memory ownerDid = _resolveActiveDid(msg.sender);
+        directory.removeAsset(assetId, ownerDid);
+
+        emit AssetRemoved(
+            keccak256(bytes(assetId)),
+            assetId,
+            ownerDid,
             msg.sender,
             block.timestamp
         );

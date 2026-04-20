@@ -82,6 +82,21 @@ describe("Asset management suite", function () {
     expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(false);
   });
 
+  it("removes an asset and invalidates previous authorizations", async function () {
+    await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
+    await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
+
+    const tx = await registrationManager.connect(alice).removeAsset("asset-001");
+    const receipt = await tx.wait();
+    expect(receipt.events.some((event) => event.event === "AssetRemoved")).to.equal(true);
+
+    expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(false);
+    await expectRevert(directory.getAsset("asset-001"), "AssetDirectory: asset not found");
+
+    await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-2"}');
+    expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(false);
+  });
+
   it("allows owner to grant and revoke authorization", async function () {
     await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
 
@@ -109,6 +124,15 @@ describe("Asset management suite", function () {
       transferManager.connect(bob).transferAssetOwnership("asset-001", carol.address)
       ,
       "AssetDirectory: current owner mismatch"
+    );
+  });
+
+  it("blocks non-owner removal", async function () {
+    await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
+
+    await expectRevert(
+      registrationManager.connect(bob).removeAsset("asset-001"),
+      "AssetDirectory: owner mismatch"
     );
   });
 

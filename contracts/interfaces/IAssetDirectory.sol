@@ -12,6 +12,11 @@ interface IAssetDirectory {
         string calldata metadata
     ) external;
 
+    /// @notice 从资产目录中移除已注册资产。
+    /// @param assetId 资产唯一业务标识。
+    /// @param ownerDid 发起移除的资产所有者 DID。
+    function removeAsset(string calldata assetId, string calldata ownerDid) external;
+
     /// @notice 转移已注册资产的所有权 DID。
     /// @param assetId 资产唯一业务标识。
     /// @param currentOwnerDid 预期的当前所有者 DID。
