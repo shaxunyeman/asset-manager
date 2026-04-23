@@ -29,6 +29,7 @@ contract AssetAuthorizationManager is AssetOperatorBase {
     /// @param assetId 资产唯一业务标识。
     /// @param ownerDid 发起请求时的资产所有者 DID。
     /// @param granteeDid 被请求授权的 DID。
+    /// @param metadata 资产授权元数据，采用 JSON 字符串格式
     /// @param requester 发起授权请求的链上账户。
     /// @param requestTime 授权请求创建时的区块时间戳。
     event AssetAuthorizationRequested(
@@ -36,6 +37,7 @@ contract AssetAuthorizationManager is AssetOperatorBase {
         string assetId,
         string ownerDid,
         string granteeDid,
+        string metadata,
         address indexed requester,
         uint256 requestTime
     );
@@ -98,7 +100,8 @@ contract AssetAuthorizationManager is AssetOperatorBase {
     ///      真正的授权仅会在被授权方调用 acceptAuthorizationRequest 后落库。
     /// @param assetId 资产唯一业务标识。
     /// @param granteeAccount 被请求授权的账户，其当前激活 DID 将成为请求目标。
-    function grantAuthorization(string calldata assetId, address granteeAccount) external {
+    /// @param metadata 资产授权元数据，采用 JSON 字符串格式
+    function grantAuthorization(string calldata assetId, address granteeAccount, string calldata metadata) external {
         require(granteeAccount != address(0), "AssetAuthorizationManager: zero account");
 
         bytes32 assetKey = keccak256(bytes(assetId));
@@ -121,6 +124,7 @@ contract AssetAuthorizationManager is AssetOperatorBase {
             assetId,
             ownerDid,
             granteeDid,
+            metadata,
             msg.sender,
             block.timestamp
         );
