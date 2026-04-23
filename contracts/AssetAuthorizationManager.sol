@@ -29,7 +29,7 @@ contract AssetAuthorizationManager is AssetOperatorBase {
     /// @param assetId 资产唯一业务标识。
     /// @param ownerDid 发起请求时的资产所有者 DID。
     /// @param granteeDid 被请求授权的 DID。
-    /// @param metadata 资产授权元数据，采用 JSON 字符串格式
+    /// @param metadata 资产授权元数据，采用 JSON 字符串格式。
     /// @param requester 发起授权请求的链上账户。
     /// @param requestTime 授权请求创建时的区块时间戳。
     event AssetAuthorizationRequested(
@@ -74,6 +74,24 @@ contract AssetAuthorizationManager is AssetOperatorBase {
         uint256 rejectTime
     );
 
+    /// @notice 更新资产授权成功时触发。
+    /// @param assetKey 资产标识的哈希键。
+    /// @param assetId 资产唯一业务标识。
+    /// @param ownerDid 发起授权的资产所有者 DID。
+    /// @param granteeDid 被授权的 DID。
+    /// @param metadata 资产授权元数据，采用 JSON 字符串格式。
+    /// @param operator 触发最终授权落库的链上账户，即接受请求的被授权方账户。
+    /// @param grantTime 授权发生时的区块时间戳。
+    event UpdateAssetAuthorizationGranted(
+        bytes32 indexed assetKey,
+        string assetId,
+        string ownerDid,
+        string granteeDid,
+        string metadata,
+        address indexed operator,
+        uint256 grantTime
+    );
+
     /// @notice 资产授权被撤销时触发。
     /// @param assetKey 资产标识的哈希键。
     /// @param assetId 资产唯一业务标识。
@@ -100,7 +118,7 @@ contract AssetAuthorizationManager is AssetOperatorBase {
     ///      真正的授权仅会在被授权方调用 acceptAuthorizationRequest 后落库。
     /// @param assetId 资产唯一业务标识。
     /// @param granteeAccount 被请求授权的账户，其当前激活 DID 将成为请求目标。
-    /// @param metadata 资产授权元数据，采用 JSON 字符串格式
+    /// @param metadata 资产授权元数据，采用 JSON 字符串格式。
     function grantAuthorization(string calldata assetId, address granteeAccount, string calldata metadata) external {
         require(granteeAccount != address(0), "AssetAuthorizationManager: zero account");
 
@@ -182,6 +200,30 @@ contract AssetAuthorizationManager is AssetOperatorBase {
         );
 
         delete _authorizationRequests[assetKey][msg.sender];
+    }
+
+
+    /// @notice 更新授予资产使用权限。
+    /// @param assetId 资产唯一业务标识。
+    /// @param granteeAccount 被授权账户，其激活 DID 将获得授权。
+    /// @param metadata 资产授权元数据，采用 JSON 字符串格式。
+    function updateGrantedAuthorization(string calldata assetId, address granteeAccount, string calldata metadata) external {
+        require(granteeAccount != address(0), "AssetAuthorizationManager: zero account");
+
+        string memory ownerDid = _resolveActiveDid(msg.sender);
+        string memory granteeDid = _resolveActiveDid(granteeAccount);
+
+        directory.grantAssetAuthorization(assetId, ownerDid, granteeDid);
+
+        emit UpdateAssetAuthorizationGranted(
+            keccak256(bytes(assetId)),
+            assetId,
+            ownerDid,
+            granteeDid,
+            metadata,
+            msg.sender,
+            block.timestamp
+        );
     }
 
     /// @notice 撤销其他账户对应激活 DID 的资产使用权限。
