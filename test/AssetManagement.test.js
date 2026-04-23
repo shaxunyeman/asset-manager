@@ -70,6 +70,7 @@ describe("Asset management suite", function () {
   it("transfers ownership and invalidates previous authorizations", async function () {
     await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
     await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
+    await authorizationManager.connect(bob).acceptAuthorizationRequest("asset-001");
     expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(true);
 
     const tx = await transferManager.connect(alice).transferAssetOwnership("asset-001", carol.address);
@@ -85,6 +86,7 @@ describe("Asset management suite", function () {
   it("removes an asset and invalidates previous authorizations", async function () {
     await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
     await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
+    await authorizationManager.connect(bob).acceptAuthorizationRequest("asset-001");
 
     const tx = await registrationManager.connect(alice).removeAsset("asset-001");
     const receipt = await tx.wait();
@@ -97,15 +99,29 @@ describe("Asset management suite", function () {
     expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(false);
   });
 
-  it("allows owner to grant and revoke authorization", async function () {
+  it("creates an authorization request and grants only after grantee acceptance", async function () {
     await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
 
     let tx = await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
     let receipt = await tx.wait();
+    expect(receipt.events.some((event) => event.event === "AssetAuthorizationRequested")).to.equal(
+      true
+    );
+
+    let request = await authorizationManager.getAuthorizationRequest("asset-001", bob.address);
+    expect(request.pending).to.equal(true);
+    expect(request.ownerDid).to.equal("did:example:alice");
+    expect(request.granteeDid).to.equal("did:example:bob");
+    expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(false);
+
+    tx = await authorizationManager.connect(bob).acceptAuthorizationRequest("asset-001");
+    receipt = await tx.wait();
     expect(receipt.events.some((event) => event.event === "AssetAuthorizationGranted")).to.equal(
       true
     );
 
+    request = await authorizationManager.getAuthorizationRequest("asset-001", bob.address);
+    expect(request.pending).to.equal(false);
     expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(true);
 
     tx = await authorizationManager.connect(alice).revokeAuthorization("asset-001", bob.address);
@@ -115,6 +131,52 @@ describe("Asset management suite", function () {
     );
 
     expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(false);
+  });
+
+  it("allows grantee to reject an authorization request", async function () {
+    await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
+    await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
+
+    const tx = await authorizationManager.connect(bob).rejectAuthorizationRequest("asset-001");
+    const receipt = await tx.wait();
+    expect(receipt.events.some((event) => event.event === "AssetAuthorizationRejected")).to.equal(
+      true
+    );
+
+    const request = await authorizationManager.getAuthorizationRequest("asset-001", bob.address);
+    expect(request.pending).to.equal(false);
+    expect(await directory.isAssetAuthorized("asset-001", "did:example:bob")).to.equal(false);
+  });
+
+  it("blocks responses from accounts that are not the requested grantee", async function () {
+    await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
+    await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
+
+    await expectRevert(
+      authorizationManager.connect(carol).acceptAuthorizationRequest("asset-001"),
+      "AssetAuthorizationManager: request not found"
+    );
+  });
+
+  it("blocks duplicate pending authorization requests", async function () {
+    await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
+    await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
+
+    await expectRevert(
+      authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address),
+      "AssetAuthorizationManager: request already pending"
+    );
+  });
+
+  it("blocks grantee response after grantee DID changes", async function () {
+    await registrationManager.connect(alice).registerAsset("asset-001", '{"name":"device-1"}');
+    await authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address);
+    await didRegistry.bindDid(bob.address, "did:example:bob:new");
+
+    await expectRevert(
+      authorizationManager.connect(bob).acceptAuthorizationRequest("asset-001"),
+      "AssetAuthorizationManager: grantee DID changed"
+    );
   });
 
   it("blocks non-owner transfers", async function () {
