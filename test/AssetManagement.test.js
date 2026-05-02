@@ -12,6 +12,7 @@ describe("Asset management suite", function () {
   let registrationManager;
   let transferManager;
   let authorizationManager;
+  let publishManager;
 
   async function expectRevert(promise, expectedMessage) {
     try {
@@ -44,6 +45,10 @@ describe("Asset management suite", function () {
     const AssetAuthorizationManager = await ethers.getContractFactory("AssetAuthorizationManager");
     authorizationManager = await AssetAuthorizationManager.deploy(directory.address, didRegistry.address);
     await authorizationManager.deployed();
+
+    const AssetPublishManager = await ethers.getContractFactory("AssetPublishManager");
+    publishManager = await AssetPublishManager.deploy(didRegistry.address);
+    await publishManager.deployed();
 
     await directory.setRegistrationManager(registrationManager.address);
     await directory.setTransferManager(transferManager.address);
@@ -205,6 +210,46 @@ describe("Asset management suite", function () {
     await expectRevert(
       authorizationManager.connect(alice).grantAuthorization("asset-001", bob.address, '{"name": "test-1"}'),
       "AssetDirectory: asset not authorizable"
+    );
+  });
+
+  it("publishes an asset and allows owner-managed status changes", async function () {
+    const metadata = '{"name":"data-asset-1"}';
+    let tx = await publishManager.connect(alice).publishAsset("pub-001", metadata);
+    let receipt = await tx.wait();
+    expect(receipt.events.some((event) => event.event === "PublishedAsset")).to.equal(true);
+
+    let published = await publishManager.getPublishedAsset("pub-001");
+    expect(published.assetId).to.equal("pub-001");
+    expect(published.publisherDid).to.equal("did:example:alice");
+    expect(published.metadata).to.equal(metadata);
+    expect(published.status).to.equal(0);
+
+    tx = await publishManager.setPublishedAssetStatus("pub-001", 1);
+    receipt = await tx.wait();
+    expect(receipt.events.some((event) => event.event === "PublishedAssetStatusChanged")).to.equal(
+      true
+    );
+
+    expect(await publishManager.getPublishedAssetStatus("pub-001")).to.equal(1);
+  });
+
+  it("blocks duplicate publish and invalid status changes", async function () {
+    await publishManager.connect(alice).publishAsset("pub-001", '{"name":"data-asset-1"}');
+
+    await expectRevert(
+      publishManager.connect(alice).publishAsset("pub-001", '{"name":"data-asset-1"}'),
+      "AssetPublishManager: asset already published"
+    );
+
+    await expectRevert(
+      publishManager.connect(alice).setPublishedAssetStatus("pub-001", 4),
+      "Ownable: caller is not the owner"
+    );
+
+    await expectRevert(
+      publishManager.connect(owner).setPublishedAssetStatus("pub-001", 4),
+      "AssetPublishManager: invalid status"
     );
   });
 });
