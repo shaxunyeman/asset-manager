@@ -42,10 +42,12 @@ contract AssetPublishManager is Ownable {
     /// @notice 数据资产发布状态变更时触发。
     /// @param assetKey 资产发布的哈希键。
     /// @param status 审核状态, 0:待审核 1:审核通过 2:审核失败 3:下架
+    /// @param statusMsg 发布状态说明，比如审核通过/审核失败原因/下架原因
     /// @param changedTime 状态变更发生时的区块时间戳。
     event PublishedAssetStatusChanged(
         bytes32 indexed assetKey,
         int status,
+        string statusMsg,
         uint256 changedTime
     );
 
@@ -87,7 +89,8 @@ contract AssetPublishManager is Ownable {
     /// @notice 修改发布数据资产状态。
     /// @param id 资产发布唯一业务标识。
     /// @param status 审核状态, 0:待审核 1:审核通过 2:审核失败 3:下架
-    function setPublishedAssetStatus(string calldata id, int status) external onlyOwner {
+    /// @param statusMsg 发布状态说明，比如审核通过/审核失败原因/下架原因
+    function setPublishedAssetStatus(string calldata id, int status, string calldata statusMsg) external {
         require(status >= 0 && status <= int256(uint256(STATUS_OFFLINE)), "AssetPublishManager: invalid status");
 
         bytes32 assetKey = _hash(id);
@@ -99,7 +102,7 @@ contract AssetPublishManager is Ownable {
 
         record.status = newStatus;
 
-        emit PublishedAssetStatusChanged(assetKey, status, block.timestamp);
+        emit PublishedAssetStatusChanged(assetKey, status, statusMsg, block.timestamp);
     }
 
     /// @notice 查询已发布资产的完整信息。
